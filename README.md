@@ -3,6 +3,7 @@ This repository contains an implementation of the level set Kalman filter, as de
 ## Basic usage
 For generating the figures that compare the Root mean-squared error (RMSE) as shown in the manuscript, just run ``get_RMSE_panels_${x}sec_script.m`` where ``x=2,3,4,6`` Note the axes are not set automatically, so the datapoints can appear outside of the plotted range by default. To change that, use ``nexttile(${y});axis([xllim xhlim yllim yhlim])`` with appropiate range for each figure tiles.
 
+![](RMSE_6_sec_n.png)
 ## Files in repository
 The files attached are all ``matlab`` codes. Here we give a brief overview of the functions of each file. For more detailed description, refer to the comments in the file. The files can be categorized as follows:
 * classes
