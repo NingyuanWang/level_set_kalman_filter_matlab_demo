@@ -32,7 +32,7 @@ for j = 1:numel(w0_degree_list)
         traj_generating_instance_parameter = get_instance_parameter(2,w0_degree,sampling_interval);
         %generate test case:
         fprintf('Generating simulated measurements...\n')
-        [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(x0,test_model,traj_generating_instance_parameter,sample_count);
+        [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(xS0,test_model,traj_generating_instance_parameter,sample_count);
         fprintf('Starting tracking filters..\n')
         [RMSE_CDCKF,covar_CDCKF,divcount_CDCKF] = find_RMSE_covar_fun(test_model,w0_degree,sampling_interval,@continuous_discrete_cubature_kalman_filter,xS0,m_CDCKF,xtrue_list,ymeasure_list,false,divergence_bound);
         RMSE_CDCKF_vT(:,k) = RMSE_CDCKF;
@@ -100,7 +100,7 @@ for j = 1:numel(w0_degree_list)
     ylabel({sprintf('\\omega_0 = %i',w0_degree_list(j));'meters'})
 end
 nexttile(column_count)
-axis([1 8 0.14 0.2])
+%axis([1 8 0.14 0.2])
 legend({'CDCKF-64','LSKF-adaptive'},'Location','Northeast')
 exportgraphics(t,'RMSE_var_secs_n.png','Resolution',450)
 savefig('RMSE_var_secs_n.fig')
@@ -113,7 +113,7 @@ end
 function [val_in_turnrate] = norm_in_turnrate(values)
     val_in_turnrate = abs(values(7,:));
 end
-function [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(x0,test_model,traj_generating_instance_parameter,sample_count)
+function [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(xS0,test_model,traj_generating_instance_parameter,sample_count)
     xtrue_list = zeros(test_model.dim_state,traj_generating_instance_parameter.observation_count+1,sample_count);
     ymeasure_list = zeros(test_model.dim_ob,traj_generating_instance_parameter.observation_count+1,sample_count);
     sc = parallel.pool.Constant(RandStream('Threefry','Seed',0));%Fixes random seed.
@@ -121,12 +121,14 @@ function [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(x0,test_mo
         %Fixing random seed:
         stream = sc.Value;   % Extract the stream from the Constant
         stream.Substream = n;
+        x0 = xS0.mean;
+        %x0 = mvnrnd(xS0.mean,xS0.covariance,1);
         [xspan,yspan] = gen_traj_and_meas(x0,test_model,traj_generating_instance_parameter);    
         xtrue_list(:,:,n) = xspan;
         ymeasure_list(:,:,n) = yspan;
     end
 end
-function [RMSE,covar,divergence_count] = find_RMSE_covar_fun(test_model,w0,sampling_interval,filter_method,xS0,m,xtrue_list,ymeasure_list,use_adaptive_solver,divergence_bound)
+function [RMSE,covar,divergence_count] = find_RMSE_covar_fun(test_model,w0,sampling_interval,filter_method,xS0_guess,m,xtrue_list,ymeasure_list,use_adaptive_solver,divergence_bound)
 %Finds the RMSE for filter_method given measurments, true location and
 %initial condition.
 %   Detailed explanation goes here
@@ -136,7 +138,7 @@ RMSE_list = zeros(test_model.dim_state,sample_count);
 var_list = zeros(test_model.dim_state,sample_count);
 divergence_list = zeros(1,sample_count);
 parfor n = 1:sample_count
-    [~,var_at_t,RMSE_single] = run_test_case(test_model,instance_parameter,xS0,xtrue_list(:,:,n),ymeasure_list(:,:,n),filter_method);
+    [~,var_at_t,RMSE_single] = run_test_case(test_model,instance_parameter,xS0_guess,xtrue_list(:,:,n),ymeasure_list(:,:,n),filter_method);
     var_single = mean(var_at_t,2);
     var_list(:,n) = var_single;
     if sqrt(sum(RMSE_single.^2,'all')) > divergence_bound

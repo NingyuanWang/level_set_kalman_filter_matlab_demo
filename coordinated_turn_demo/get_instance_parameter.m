@@ -5,7 +5,7 @@ function [instance_parameter] = get_instance_parameter(m,w0_degree,measurement_i
 %   measurement_interval: <-
 %   varargin = alpha,use_adaptive_solver,return_uncorrected_prediction. Same
 %   meaning as in the instance_parameter_cls
-rotation_angle = 720;
+rotation_angle = 1800;
 if (nargin >= 7)
     T = varargin{4};
 else

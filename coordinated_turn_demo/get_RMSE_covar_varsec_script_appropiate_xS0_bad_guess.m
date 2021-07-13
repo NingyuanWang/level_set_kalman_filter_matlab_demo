@@ -17,7 +17,7 @@ sample_count = 100;
 %Iterate through w0_degree_list:
 for j = 1:numel(w0_degree_list)
     w0_degree = w0_degree_list(j);
-    xS0 = get_initial_condition(w0_degree);
+    xS0 = get_initial_condition(w0_degree,0.2);
     x0 = xS0.mean;
     test_model = get_test_model();
     RMSE_CDCKF_vT = zeros(test_model.dim_state,numel(sampling_interval_list));
@@ -32,35 +32,37 @@ for j = 1:numel(w0_degree_list)
         traj_generating_instance_parameter = get_instance_parameter(2,w0_degree,sampling_interval);
         %generate test case:
         fprintf('Generating simulated measurements...\n')
-        [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(x0,test_model,traj_generating_instance_parameter,sample_count);
+        [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(xS0,test_model,traj_generating_instance_parameter,sample_count);
         fprintf('Starting tracking filters..\n')
-        [RMSE_CDCKF,covar_CDCKF,divcount_CDCKF] = find_RMSE_covar_fun(test_model,w0_degree,sampling_interval,@continuous_discrete_cubature_kalman_filter,xS0,m_CDCKF,xtrue_list,ymeasure_list,false,divergence_bound);
+        xS0_guess = mean_covariance_sqrt_cls(mvnrnd(xS0.mean,xS0.covariance,1),xS0.c_sqrt/16);
+        %xS0_guess = xS0;
+        [RMSE_CDCKF,covar_CDCKF,divcount_CDCKF] = find_RMSE_covar_fun(test_model,w0_degree,sampling_interval,@continuous_discrete_cubature_kalman_filter,xS0_guess,m_CDCKF,xtrue_list,ymeasure_list,false,divergence_bound);
         RMSE_CDCKF_vT(:,k) = RMSE_CDCKF;
         covar_CDCKF_vT(:,k) = covar_CDCKF;
         divcount_CDCKF_vT(k) = divcount_CDCKF;
-        [RMSE_LSKF_adaptive,covar_LSKF_adaptive,divcount_LSKF] = find_RMSE_covar_fun(test_model,w0_degree,sampling_interval,@level_set_filter,xS0,m_LSKF,xtrue_list,ymeasure_list,true,divergence_bound);
+        [RMSE_LSKF_adaptive,covar_LSKF_adaptive,divcount_LSKF] = find_RMSE_covar_fun(test_model,w0_degree,sampling_interval,@level_set_filter,xS0_guess,m_LSKF,xtrue_list,ymeasure_list,true,divergence_bound);
         RMSE_LSKF_vT(:,k) = RMSE_LSKF_adaptive;
         covar_LSKF_vT(:,k) = covar_LSKF_adaptive;
         divcount_LSKF_vT(k) = divcount_LSKF;
     end
     nexttile(column_count*(j-1)+1);
     hold on
-    plot(sampling_interval_list,norm_in_position_x(RMSE_CDCKF_vT),'o-')
-    plot(sampling_interval_list,norm_in_position_x(RMSE_LSKF_vT),'-.+')
+    plot(sampling_interval_list,norm_in_position(RMSE_CDCKF_vT),'o-')
+    plot(sampling_interval_list,norm_in_position(RMSE_LSKF_vT),'-.+')
     %legend({'CDCKF-64','LSKF-adaptive'},'Location','Northwest')
-    plot(sampling_interval_list,norm_in_position_x(sqrt(covar_CDCKF_vT)),'x--')
-    plot(sampling_interval_list,norm_in_position_x(sqrt(covar_LSKF_vT)),'d:')
-    legend('RMSE: CDCKF-64','RMSE: LSKF adaptive','stdev: CDCKF-64','stdev: LSKF adaptive')
+    %plot(sampling_interval_list,norm_in_position(sqrt(covar_CDCKF_vT)),'x--')
+    %plot(sampling_interval_list,norm_in_position(sqrt(covar_LSKF_vT)),'d:')
+    %legend('RMSE: CDCKF-64','RMSE: LSKF adaptive','stdev: CDCKF-64','stdev: LSKF adaptive')
     xlabel('sampling interval (s)')
     ylabel('meters')
     nexttile(column_count*(j-1)+2);
     hold on
-    plot(sampling_interval_list,norm_in_velocity_x(RMSE_CDCKF_vT),'o-')
-    plot(sampling_interval_list,norm_in_velocity_x(RMSE_LSKF_vT),'-.+')
+    plot(sampling_interval_list,norm_in_velocity(RMSE_CDCKF_vT),'o-')
+    plot(sampling_interval_list,norm_in_velocity(RMSE_LSKF_vT),'-.+')
     %legend({'CDCKF-64','LSKF-adaptive'},'Location','Northwest')
-    plot(sampling_interval_list,norm_in_velocity_x(sqrt(covar_CDCKF_vT)),'x--')
-    plot(sampling_interval_list,norm_in_velocity_x(sqrt(covar_LSKF_vT)),'d:')
-    legend('RMSE: CDCKF-64','RMSE: LSKF adaptive','stdev: CDCKF-64','stdev: LSKF adaptive')
+    %plot(sampling_interval_list,norm_in_velocity(sqrt(covar_CDCKF_vT)),'x--')
+    %plot(sampling_interval_list,norm_in_velocity(sqrt(covar_LSKF_vT)),'d:')
+    %legend('RMSE: CDCKF-64','RMSE: LSKF adaptive','stdev: CDCKF-64','stdev: LSKF adaptive')
     xlabel('sampling interval (s)')
     ylabel('meters/second')
     nexttile(column_count*(j-1)+3);
@@ -68,9 +70,9 @@ for j = 1:numel(w0_degree_list)
     plot(sampling_interval_list,norm_in_turnrate(RMSE_CDCKF_vT)*180/pi,'o-')
     plot(sampling_interval_list,norm_in_turnrate(RMSE_LSKF_vT)*180/pi,'-.+')
     %legend({'CDCKF-64','LSKF-adaptive'},'Location','Northwest')
-    plot(sampling_interval_list,norm_in_turnrate(sqrt(covar_CDCKF_vT))*180/pi,'x--')
-    plot(sampling_interval_list,norm_in_turnrate(sqrt(covar_LSKF_vT))*180/pi,'d:')
-    legend('RMSE: CDCKF-64','RMSE: LSKF adaptive','stdev: CDCKF-64','stdev: LSKF adaptive')
+    %plot(sampling_interval_list,norm_in_turnrate(sqrt(covar_CDCKF_vT))*180/pi,'x--')
+    %plot(sampling_interval_list,norm_in_turnrate(sqrt(covar_LSKF_vT))*180/pi,'d:')
+    %legend('RMSE: CDCKF-64','RMSE: LSKF adaptive','stdev: CDCKF-64','stdev: LSKF adaptive')
     xlabel('sampling interval (s)')
     ylabel('degrees/second')
     %Count of divergent results is not drawn since it is constantly 0
@@ -101,19 +103,19 @@ for j = 1:numel(w0_degree_list)
 end
 nexttile(column_count)
 %axis([1 8 0.14 0.2])
-%legend({'CDCKF-64','LSKF-adaptive'},'Location','Northeast')
-exportgraphics(t,'RMSE_var_secs_in_x_n.png','Resolution',450)
-savefig('RMSE_var_secs_in_x_n.fig')
-function [val_in_position] = norm_in_position_x(values)
-    val_in_position = sqrt(values(1,:).^2);
+legend({'CDCKF-64','LSKF-adaptive'},'Location','Northeast')
+exportgraphics(t,'RMSE_var_secs_n_bad_guess.png','Resolution',450)
+savefig('RMSE_var_secs_n_bad_guess.fig')
+function [val_in_position] = norm_in_position(values)
+    val_in_position = sqrt(values(1,:).^2+values(3,:).^2+values(5,:).^2);
 end
-function [val_in_velocity] = norm_in_velocity_x(values)
-    val_in_velocity = sqrt(values(2,:).^2);
+function [val_in_velocity] = norm_in_velocity(values)
+    val_in_velocity = sqrt(values(2,:).^2+values(4,:).^2+values(6,:).^2);
 end
 function [val_in_turnrate] = norm_in_turnrate(values)
     val_in_turnrate = abs(values(7,:));
 end
-function [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(x0,test_model,traj_generating_instance_parameter,sample_count)
+function [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(xS0,test_model,traj_generating_instance_parameter,sample_count)
     xtrue_list = zeros(test_model.dim_state,traj_generating_instance_parameter.observation_count+1,sample_count);
     ymeasure_list = zeros(test_model.dim_ob,traj_generating_instance_parameter.observation_count+1,sample_count);
     sc = parallel.pool.Constant(RandStream('Threefry','Seed',0));%Fixes random seed.
@@ -121,12 +123,14 @@ function [xtrue_list,ymeasure_list] = get_traj_and_measure_high_level(x0,test_mo
         %Fixing random seed:
         stream = sc.Value;   % Extract the stream from the Constant
         stream.Substream = n;
+        %x0 = xS0.mean;
+        x0 = mvnrnd(xS0.mean,(xS0.covariance),1);
         [xspan,yspan] = gen_traj_and_meas(x0,test_model,traj_generating_instance_parameter);    
         xtrue_list(:,:,n) = xspan;
         ymeasure_list(:,:,n) = yspan;
     end
 end
-function [RMSE,covar,divergence_count] = find_RMSE_covar_fun(test_model,w0,sampling_interval,filter_method,xS0,m,xtrue_list,ymeasure_list,use_adaptive_solver,divergence_bound)
+function [RMSE,covar,divergence_count] = find_RMSE_covar_fun(test_model,w0,sampling_interval,filter_method,xS0_guess,m,xtrue_list,ymeasure_list,use_adaptive_solver,divergence_bound)
 %Finds the RMSE for filter_method given measurments, true location and
 %initial condition.
 %   Detailed explanation goes here
@@ -136,7 +140,7 @@ RMSE_list = zeros(test_model.dim_state,sample_count);
 var_list = zeros(test_model.dim_state,sample_count);
 divergence_list = zeros(1,sample_count);
 parfor n = 1:sample_count
-    [~,var_at_t,RMSE_single] = run_test_case(test_model,instance_parameter,xS0,xtrue_list(:,:,n),ymeasure_list(:,:,n),filter_method);
+    [~,var_at_t,RMSE_single] = run_test_case(test_model,instance_parameter,xS0_guess,xtrue_list(:,:,n),ymeasure_list(:,:,n),filter_method);
     var_single = mean(var_at_t,2);
     var_list(:,n) = var_single;
     if sqrt(sum(RMSE_single.^2,'all')) > divergence_bound
